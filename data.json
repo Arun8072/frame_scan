@@ -1,0 +1,12 @@
+[
+  {
+    "image": "photo1.jpg",
+    "video": "video1.mp4",
+    "label": "Birthday 2024"
+  },
+  {
+    "image": "photo2.jpg",
+    "video": "video2.mp4",
+    "label": "Trip to Goa"
+  }
+]
