@@ -1,67 +1,136 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Capture Photo / Upload Video</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capture Photo & Video</title>
     <style>
-        video, canvas { max-width: 100%; height: auto; }
-        button { margin-top: 10px; }
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #111;
+            color: white;
+            margin: 0;
+            padding: 0;
+        }
+        video, canvas {
+            width: 100%;
+            max-width: 500px;
+            border-radius: 10px;
+            background: black;
+        }
+        .controls {
+            margin: 15px 0;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button.photo { background: #28a745; color: white; }
+        button.video { background: #007bff; color: white; }
+        button.stop { background: #dc3545; color: white; }
+        input[type="file"] {
+            display: none;
+        }
+        label.upload-btn {
+            background: #ffc107;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            color: black;
+        }
     </style>
 </head>
 <body>
-    <h1>Capture Photo or Upload Video</h1>
-    
-    <!-- Video preview -->
-    <video id="camera" autoplay playsinline></video>
-    <br>
-    <button id="captureBtn">Capture Photo</button>
 
-    <!-- Hidden canvas for photo processing -->
+    <h2>📸 Capture Photo & Video</h2>
+    
+    <video id="camera" autoplay playsinline></video>
     <canvas id="photoCanvas" style="display:none;"></canvas>
 
-    <form id="uploadForm" enctype="multipart/form-data" method="POST" action="save_upload.php">
-        <input type="file" name="video" accept="video/*">
-        <button type="submit">Upload Video</button>
-    </form>
+    <div class="controls">
+        <button class="photo" onclick="capturePhoto()">Capture Photo</button>
+        <button class="video" onclick="startRecording()">Start Video</button>
+        <button class="stop" onclick="stopRecording()" disabled>Stop Video</button>
+        <br><br>
+        <label for="videoUpload" class="upload-btn">📤 Upload Video</label>
+        <input type="file" id="videoUpload" accept="video/*" onchange="uploadVideoFile()">
+    </div>
 
     <script>
         const video = document.getElementById('camera');
         const canvas = document.getElementById('photoCanvas');
-        const captureBtn = document.getElementById('captureBtn');
+        let mediaRecorder;
+        let recordedChunks = [];
 
-        // Access back camera by default
+        // Start camera (default to back camera if available)
         navigator.mediaDevices.getUserMedia({
-            video: { facingMode: { exact: "environment" } }
-        })
-        .then(stream => {
+            video: { facingMode: { exact: "environment" } }, audio: true
+        }).then(stream => {
             video.srcObject = stream;
-        })
-        .catch(err => {
-            console.error("Error accessing camera:", err);
+        }).catch(err => {
+            console.error("Back camera not available, using default camera:", err);
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => video.srcObject = stream);
         });
 
-        captureBtn.addEventListener('click', () => {
-            // Match canvas size to video resolution
+        // Capture Photo
+        function capturePhoto() {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
+            canvas.getContext('2d').drawImage(video, 0, 0);
             canvas.toBlob(blob => {
-                const formData = new FormData();
-                formData.append('photo', blob, 'temp.jpg');
+                uploadFile(blob, 'photo');
+            }, 'image/jpeg');
+        }
 
-                fetch('save_upload.php', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(res => res.text())
-                .then(data => {
-                    alert(data);
-                });
-            }, 'image/jpeg', 0.95);
-        });
+        // Start Video Recording
+        function startRecording() {
+            recordedChunks = [];
+            const stream = video.srcObject;
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.ondataavailable = e => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/mp4' });
+                uploadFile(blob, 'video');
+            };
+            mediaRecorder.start();
+            document.querySelector('.stop').disabled = false;
+        }
+
+        // Stop Video Recording
+        function stopRecording() {
+            mediaRecorder.stop();
+            document.querySelector('.stop').disabled = true;
+        }
+
+        // Upload from File Picker
+        function uploadVideoFile() {
+            const file = document.getElementById('videoUpload').files[0];
+            if (file) uploadFile(file, 'video');
+        }
+
+        // Upload Function
+        function uploadFile(file, type) {
+            const formData = new FormData();
+            formData.append('media', file);
+            formData.append('type', type);
+
+            fetch('save_upload.php', {
+                method: 'POST',
+                body: formData
+            }).then(res => res.text())
+              .then(msg => alert(msg))
+              .catch(err => console.error('Upload failed:', err));
+        }
     </script>
+
 </body>
 </html>
