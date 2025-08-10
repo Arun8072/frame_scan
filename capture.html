@@ -1,81 +1,67 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Capture & Upload</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <title>Capture Photo / Upload Video</title>
+    <style>
+        video, canvas { max-width: 100%; height: auto; }
+        button { margin-top: 10px; }
+    </style>
 </head>
-<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen p-6">
+<body>
+    <h1>Capture Photo or Upload Video</h1>
+    
+    <!-- Video preview -->
+    <video id="camera" autoplay playsinline></video>
+    <br>
+    <button id="captureBtn">Capture Photo</button>
 
-  <h1 class="text-2xl font-bold mb-4">Capture Photo & Upload Video</h1>
+    <!-- Hidden canvas for photo processing -->
+    <canvas id="photoCanvas" style="display:none;"></canvas>
 
-  <!-- Webcam -->
-  <div class="mb-4">
-    <video id="webcam" autoplay playsinline class="rounded-lg shadow-lg"></video>
-  </div>
+    <form id="uploadForm" enctype="multipart/form-data" method="POST" action="save_upload.php">
+        <input type="file" name="video" accept="video/*">
+        <button type="submit">Upload Video</button>
+    </form>
 
-  <!-- Capture Button -->
-  <button id="captureBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
-    📸 Capture Photo
-  </button>
+    <script>
+        const video = document.getElementById('camera');
+        const canvas = document.getElementById('photoCanvas');
+        const captureBtn = document.getElementById('captureBtn');
 
-  <!-- Preview -->
-  <div class="mt-4">
-    <canvas id="photoCanvas" class="hidden"></canvas>
-    <img id="photoPreview" class="mt-2 rounded-lg shadow-lg hidden" />
-  </div>
+        // Access back camera by default
+        navigator.mediaDevices.getUserMedia({
+            video: { facingMode: { exact: "environment" } }
+        })
+        .then(stream => {
+            video.srcObject = stream;
+        })
+        .catch(err => {
+            console.error("Error accessing camera:", err);
+        });
 
-  <!-- Upload Video -->
-  <form id="uploadForm" class="mt-6 flex flex-col gap-4" enctype="multipart/form-data">
-    <input type="file" name="video" id="videoInput" accept="video/*"
-      class="text-gray-300 bg-gray-800 border border-gray-700 rounded p-2" required>
-    <input type="hidden" name="photoData" id="photoData">
-    <button type="submit" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
-      ⬆️ Upload to Assets
-    </button>
-  </form>
+        captureBtn.addEventListener('click', () => {
+            // Match canvas size to video resolution
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
 
-  <div id="status" class="mt-4 text-sm text-gray-400"></div>
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  <script>
-    const webcam = document.getElementById("webcam");
-    const photoCanvas = document.getElementById("photoCanvas");
-    const photoPreview = document.getElementById("photoPreview");
-    const photoData = document.getElementById("photoData");
-    const captureBtn = document.getElementById("captureBtn");
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('photo', blob, 'temp.jpg');
 
-    // Example reference scan photo resolution (change to your actual)
-    const scanWidth = 640;
-    const scanHeight = 480;
-
-    navigator.mediaDevices.getUserMedia({ video: { width: scanWidth, height: scanHeight } })
-      .then(stream => webcam.srcObject = stream)
-      .catch(err => console.error("Camera error:", err));
-
-    captureBtn.addEventListener("click", () => {
-      photoCanvas.width = scanWidth;
-      photoCanvas.height = scanHeight;
-      const ctx = photoCanvas.getContext("2d");
-      ctx.drawImage(webcam, 0, 0, scanWidth, scanHeight);
-
-      const dataURL = photoCanvas.toDataURL("image/png");
-      photoData.value = dataURL;
-      photoPreview.src = dataURL;
-      photoPreview.classList.remove("hidden");
-    });
-
-    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-
-      const res = await fetch("save_media.php", {
-        method: "POST",
-        body: formData
-      });
-      const result = await res.text();
-      document.getElementById("status").innerText = result;
-    });
-  </script>
+                fetch('save_upload.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.text())
+                .then(data => {
+                    alert(data);
+                });
+            }, 'image/jpeg', 0.95);
+        });
+    </script>
 </body>
 </html>
